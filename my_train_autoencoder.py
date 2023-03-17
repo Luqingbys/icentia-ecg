@@ -7,10 +7,12 @@ import glob
 # from model import Autoencoder
 from myAE import Autoencoder
 from mydata_io import *
+from utils import get_logger
 import sys
 import random
 
-report_every: int = 100
+
+report_every: int = 10
 frame_length: int = 2**11 + 1
 
 
@@ -33,9 +35,9 @@ def data_stream(filenames, shuffle=True, batch_size=16):
 
 
 if __name__ == "__main__":
-    print('====== train_myautoencoder.py ======')
+    logger = get_logger(filename='out/my_autoencoder/train.log')
+    logger.info('====== Start training myautoencoder... ======')
     # directory = sys.argv[1]
-    # directory = 'G:\深度学习\医疗\icentia-ecg\icentia-ecg\datasets'
     directory = 'datasets/'
     filenames = [ directory + "/%05d_batched.pkl.gz" % i
                   for i in range(21) ]
@@ -71,7 +73,6 @@ if __name__ == "__main__":
     i = 0
     input = None
 
-
     # 开始训练
     for epoch in range(epochs):
         running_loss = 0.0
@@ -83,7 +84,7 @@ if __name__ == "__main__":
             # zero the parameter gradients
             # forward + backward + optimize，model(input)直接返回输出和原始输入之间的损失
             loss = model(input)
-            # print(loss)
+            # print(f'{epoch}, ', loss)
 
             if i % 4 == 0:
                 loss.backward()
@@ -98,11 +99,14 @@ if __name__ == "__main__":
 
             i += 1
             if i % report_every == 0:    # print every 500 mini-batches
-                print('[%d, %5d] loss: %.3f' %
-                      (epoch, i, running_loss / time_step_count))
+                # print('[%d, %5d] loss: %.3f' %
+                #       (epoch, i, running_loss / time_step_count))
+                logger.info('Epoch:[{}/{}]\t current loss={:.5f}\t mini_batch average loss={:.3f}'.format(epoch , epochs, loss, running_loss/time_step_count))
                 running_loss = 0.0
                 time_step_count = 0
+
             if i % (report_every * 10) == 0:
+            # 验证集
                 model.eval()
                 with torch.no_grad():
                     total_loss = 0.
@@ -117,13 +121,18 @@ if __name__ == "__main__":
                         count += 1
                     valid_loss = total_loss / count
                     if valid_loss < best_loss:
-                        print("Best valid loss:", valid_loss)
+                        # print("Best valid loss:", valid_loss)
+                        logger.info(f'Best valid loss:{valid_loss}')
                         with open('model.pt', 'wb') as f:
                             torch.save(model, f)
                         best_loss = valid_loss
                     else:
-                        print("Valid loss:", valid_loss)
+                        # print("Valid loss:", valid_loss)
+                        logger.info(f'Valid loss: {valid_loss}')
                 random.shuffle(valid_filenames)
                 scheduler.step(valid_loss)
                 model.train()
+    # 保存模型文件
+    with open('newAe.pt', 'wb') as f:
+        torch.save(model, f)
 

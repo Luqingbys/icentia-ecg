@@ -22,6 +22,10 @@ def receptive_field(op_params):
 class ResidualEncoder(torch.nn.Module):
     ''' 
     带有残差结构的编码器：本质上就是一个带有残差结构的卷积结构
+    in_channels: 1
+    out_channels: 100
+    kernel_size: 2049
+    stride: 2048
     '''
     def __init__(self, in_channels, out_channels, kernel_size, stride,
                  activation=torch.nn.ELU(), dropout=0.1, last=False):
@@ -29,8 +33,8 @@ class ResidualEncoder(torch.nn.Module):
         self.last = last
 
         self.conv_op = torch.nn.Conv1d(
-            in_channels=in_channels,
-            out_channels=2 * out_channels,
+            in_channels=in_channels, # 1
+            out_channels=2 * out_channels, # 200
             kernel_size=kernel_size,
             stride=stride,
             padding=0,
@@ -38,16 +42,16 @@ class ResidualEncoder(torch.nn.Module):
         )
 
         self.nin_op = torch.nn.Conv1d(
-            in_channels=2 * out_channels,
-            out_channels=out_channels,
+            in_channels=2 * out_channels, # 200
+            out_channels=out_channels, # 100
             kernel_size=1,
             stride=1,
             padding=0,
             dilation=1, groups=1, bias=True
         )
         self.res_op = torch.nn.Conv1d(
-            in_channels=2 * out_channels,
-            out_channels=out_channels,
+            in_channels=2 * out_channels, # 200
+            out_channels=out_channels, # 100
             kernel_size=1,
             stride=1,
             padding=0,
@@ -61,6 +65,7 @@ class ResidualEncoder(torch.nn.Module):
 
     def forward(self, x):
         z_ = self.bn(self.conv_op(x))
+        # print('after conv1: ', z_.shape)
         z = self.dropout(self.activation(z_))
         y_ = self.nin_op(z)
         if not self.last:
@@ -73,29 +78,36 @@ class ResidualEncoder(torch.nn.Module):
 class ResidualDecoder(torch.nn.Module):
     ''' 
     带有残差结构的解码器：本质上就是带有残差结构的卷积结构
+    (1, 100, 2049, 2048)
     '''
 
     def __init__(self, in_channels, out_channels, kernel_size, stride,
                  activation=torch.nn.ELU(), dropout=0.5, last=False):
+        ''' 
+        in_channels: 100
+        out_channels: 1
+        kernel_size: 2049
+        stride: 2048
+        '''
         super(ResidualDecoder, self).__init__()
         self.last = last
         self.conv_op = torch.nn.ConvTranspose1d(
-            in_channels=in_channels,
-            out_channels=out_channels * 2,
-            kernel_size=kernel_size,
-            stride=stride,
+            in_channels=in_channels, # 100
+            out_channels=out_channels * 2, # 1*2
+            kernel_size=kernel_size, # 2049
+            stride=stride, # 2048
             dilation=1, groups=1, bias=True
         )
         self.nonlin = torch.nn.Conv1d(
-            in_channels=out_channels * 2,
-            out_channels=out_channels,
+            in_channels=out_channels * 2, # 1*2
+            out_channels=out_channels, # 1
             kernel_size=1,
             stride=1,
             dilation=1, groups=1, bias=True
         )
         self.res_op = torch.nn.Conv1d(
-            in_channels=out_channels * 2,
-            out_channels=out_channels,
+            in_channels=out_channels * 2, # 
+            out_channels=out_channels, # 
             kernel_size=1,
             stride=1,
             dilation=1, groups=1, bias=True
@@ -107,7 +119,9 @@ class ResidualDecoder(torch.nn.Module):
 
 
     def forward(self, x):
+        
         z_ = self.bn(self.conv_op(x))
+        # print('after convTranspose1: ', z_.shape)
         z = self.dropout(self.activation(z_))
         y_ = self.nonlin(z)
         # print(y_.size(), z.size())
@@ -134,7 +148,7 @@ class ConvAutoencoder(torch.nn.Module):
         # 添加多层编码器ResidualEncoder
         for i, (in_c, out_c, kernel, stride) in enumerate(stack_spec):
             # (1, 100, 2049,  2048)
-            last = i == (len(stack_spec)-1)
+            last = i == (len(stack_spec)-1) # 最后一个残差编码器块时，last==True
             encode_ops.append(ResidualEncoder(in_c, out_c, kernel, stride,
                                               dropout=0.1,
                                               last=last))
@@ -160,6 +174,7 @@ class ConvAutoencoder(torch.nn.Module):
         # 添加多层解码器ResidualDecoder
         decode_ops = []
         for i, (out_c, in_c, kernel, stride) in enumerate(stack_spec[::-1]):
+            # (1, 100, 2049, 2048)
             last = (i == len(stack_spec)-1)
             decode_ops.append(ResidualDecoder(in_c, out_c, kernel, stride,
                                               dropout=0.1,
@@ -170,7 +185,7 @@ class ConvAutoencoder(torch.nn.Module):
 
             #    decode_ops.append(dropout)
             # decode_ops = decode_ops[:-1]
-            self.decode = torch.nn.Sequential(*decode_ops)
+        self.decode = torch.nn.Sequential(*decode_ops)
         self.activation = activation
         self.dropout = dropout
         self.debug = debug
@@ -253,7 +268,9 @@ class Autoencoder(torch.nn.Module):
         )
         self.frame_bn = nn.BatchNorm1d(frame_dim)
 
-        self.linear_trans = nn.Linear(512 * frame_dim + self.patient_num, 512 * frame_dim)
+        # self.linear_trans = nn.Linear(frame_dim+self.patient_num//frame_dim, frame_dim)
+        # TODO: 改为卷积，将第三维大小622变为512，参与后续的解码
+        self.merge_conv = nn.Conv1d(frame_dim, frame_dim, kernel_size=self.patient_num//frame_dim+1)
 
 
     def encode_3(self, x, input_shape):
@@ -271,6 +288,7 @@ class Autoencoder(torch.nn.Module):
 
 
     def decode(self, encoding):
+        '''encoding: (16, 100, 512)'''
         output = self.autoencode_1.decode(encoding)
         return output
 
@@ -280,27 +298,29 @@ class Autoencoder(torch.nn.Module):
         自编码器，解码器部分添加病人的唯一标识，用独热编码表示
         input: (16, 1, 1048577)
         '''
-        identity = torch.eye(11000)
+        identity = torch.eye(self.patient_num)
         # print('====== AutoEncoder ======')
         # input: (16, 1, 1048577+1)
         input = input[:, :, :-1]
-        patient_idx = input[:, :, -1].flatten().int() # (16,)
+        patient_idx = input[:, :, -1].flatten().long() # (16,)
 
-        extra = identity[patient_idx] # (16, 11000), 每一行均为独热
         input = (input - self.mean) / self.std
         input_flat = input.view(-1, 1, input.size(-1))
 
         encode = self.encode(input_flat) # encode: (16, 100, 512)
 
         # TODO: 拼接病人的唯一标识
-        bz, c, l = encode.shape
-        # print('encode: ', encode.shape)
-        encode = encode.flatten(1) # (16, 51200)
-        encode_h = torch.cat([encode, extra], dim=1) # encode_h: (16, 51200+11000)
-        encode_h = self.linear_trans(encode_h) # encode_h: (16, 51200)
-        encode_h = encode_h.reshape(bz, c, l) # encode_h: (16, 100, 512)
+        bz, c, l = encode.shape # 16, 100, 512
+        extra = identity[patient_idx].reshape(bz, c, -1).cuda() # (16, 11000) => (16, 100, 110), 每一行均为独热，注意要将其转移到cuda，不然在gpu上训练时会报错
 
-        output = self.decode(encode_h) # decode: (16, 1, 1048577)
+        # print('encode: ', encode.shape)
+        # encode = encode.flatten(1) # (16, 51200)
+        encode_h = torch.cat([encode, extra], dim=2) # encode_h: (16, 100, 622)
+        encode_h = self.merge_conv(encode_h) # (16, 100, 622) => (16, 100, 512)
+        # encode_h = self.linear_trans(encode_h) # encode_h: (16, 100, 512)
+        # encode_h = encode_h.reshape(bz, c, l) # encode_h: (16, 100, 512)
+
+        output = self.decode(encode_h) # output: (16, 1, 1048577)
         # print('decode: ', output.shape)
 
         output = output.view(input.size())

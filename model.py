@@ -61,6 +61,7 @@ class ResidualEncoder(torch.nn.Module):
 
     def forward(self, x):
         z_ = self.bn(self.conv_op(x))
+        print('conv1: ', z_.shape)
         z = self.dropout(self.activation(z_))
         y_ = self.nin_op(z)
         if not self.last:
@@ -80,24 +81,24 @@ class ResidualDecoder(torch.nn.Module):
         super(ResidualDecoder, self).__init__()
         self.last = last
         self.conv_op = torch.nn.ConvTranspose1d(
-            in_channels=in_channels,
-            out_channels=out_channels * 2,
-            kernel_size=kernel_size,
-            stride=stride,
+            in_channels=in_channels, # 100
+            out_channels=out_channels * 2, # 1 * 2
+            kernel_size=kernel_size, # 2049
+            stride=stride, # 2048
             dilation=1, groups=1, bias=True
         )
         self.nonlin = torch.nn.Conv1d(
-            in_channels=out_channels * 2,
+            in_channels=out_channels * 2, # 
             out_channels=out_channels,
             kernel_size=1,
             stride=1,
             dilation=1, groups=1, bias=True
         )
         self.res_op = torch.nn.Conv1d(
-            in_channels=out_channels * 2,
-            out_channels=out_channels,
-            kernel_size=1,
-            stride=1,
+            in_channels=out_channels * 2, # 1 * 2
+            out_channels=out_channels, # 1
+            kernel_size=1, # 1
+            stride=1, # 1
             dilation=1, groups=1, bias=True
         )
 
@@ -107,7 +108,9 @@ class ResidualDecoder(torch.nn.Module):
 
 
     def forward(self, x):
+        print('Residual Decoder: ', x.shape)
         z_ = self.bn(self.conv_op(x))
+        print('convTranspose1: ', z_.shape)
         z = self.dropout(self.activation(z_))
         y_ = self.nonlin(z)
         # print(y_.size(), z.size())
@@ -121,6 +124,7 @@ class ResidualDecoder(torch.nn.Module):
 class ConvAutoencoder(torch.nn.Module):
     ''' 
     卷积自编码器，包含编码器、解码器两部分
+    (1, frame_dim=100, 2049,  2048)
     '''
     def __init__(self, stack_spec, debug=True):
         ''' 
@@ -133,6 +137,7 @@ class ConvAutoencoder(torch.nn.Module):
 
         # 添加多层编码器ResidualEncoder
         for i, (in_c, out_c, kernel, stride) in enumerate(stack_spec):
+            # (1, frame_dim=100, 2049,  2048)
             last = i == (len(stack_spec)-1)
             encode_ops.append(ResidualEncoder(in_c, out_c, kernel, stride,
                                               dropout=0.1,
@@ -159,6 +164,7 @@ class ConvAutoencoder(torch.nn.Module):
         # 添加多层解码器ResidualDecoder
         decode_ops = []
         for i, (out_c, in_c, kernel, stride) in enumerate(stack_spec[::-1]):
+            # (1, frame_dim=100, 2049,  2048)
             last = (i == len(stack_spec)-1)
             decode_ops.append(ResidualDecoder(in_c, out_c, kernel, stride,
                                               dropout=0.1,
@@ -270,7 +276,7 @@ class Autoencoder(torch.nn.Module):
 
 
     def decode(self, encoding):
-        output = self.autoencode_1.decode(encoding)
+        output = self.autoencode_1.decode(encoding) # encoding: (16, 100, 512)
         return output
 
 
@@ -278,7 +284,7 @@ class Autoencoder(torch.nn.Module):
         ''' 
         input: (16, 1, 1048577)
         '''
-        print('====== AutoEncoder ======')
+        # print('====== AutoEncoder ======')
         # print('input: ', input.shape) # input: (16, 1, 1048577)
         input = (input - self.mean) / self.std
         input_flat = input.view(-1, 1, input.size(-1))
@@ -297,11 +303,11 @@ class Autoencoder(torch.nn.Module):
 
         
         encode = self.encode(input_flat) # encode: (16, 100, 512)
-        print('encode: ', encode.shape)
+        # print('encode: ', encode.shape)
         output = self.decode(encode) # decode: (16, 1, 1048577)
-        print('decode: ', output.shape)
+        # print('decode: ', output.shape)
         output = output.view(input.size()) # output: (16, 1, 1048577)
-        print('output: ', output.shape)
+        # print('output: ', output.shape)
 
         # input为原始输入，output为自编码器的输出
         loss = torch.sqrt(torch.mean((output - input)**2))
