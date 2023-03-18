@@ -38,7 +38,7 @@ class convautoencoder():
     def __init__(self, model_name="model.pt", data=None):
         if model_name is None:
             import model
-            self.enc = model.Autoencoder()
+            self.enc = model.Autoencoder() #
         else:
             self.enc = torch.load(os.path.join(dir_path,model_name), map_location='cpu')
         self.enc.eval()

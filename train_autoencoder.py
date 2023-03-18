@@ -6,10 +6,11 @@ import glob
 # import torch.nn as nn
 from model import Autoencoder
 import data_io
+from utils import get_logger
 import sys
 import random
 
-report_every: int = 100
+report_every: int = 10
 frame_length: int = 2**11 + 1
 
 
@@ -32,9 +33,11 @@ def data_stream(filenames, shuffle=True, batch_size=16):
 
 
 if __name__ == "__main__":
+    logger = get_logger('out/autoencoder/train.log')
+    logger.info('====== Start training autoencoder... ======')
     # directory = sys.argv[1]
-    directory = 'G:\深度学习\医疗\icentia-ecg\icentia-ecg\datasets'
-    filenames = [ directory + "\\%05d_batched.pkl.gz" % i
+    directory = 'datasets'
+    filenames = [ directory + "/%05d_batched.pkl.gz" % i
                   for i in range(21) ]
     # print(filenames)
     train_count = int(len(filenames) * 0.9)
@@ -93,14 +96,13 @@ if __name__ == "__main__":
 
             i += 1
             if i % report_every == 0:    # print every 500 mini-batches
-                print('[%d, %5d] loss: %.3f' %
-                      (epoch, i, running_loss / time_step_count))
+                # print('[%d, %5d] loss: %.3f' %
+                #       (epoch, i, running_loss / time_step_count))
+                logger.info('Epoch:[{}/{}]\t current loss={:.5f}\t mini_batch average loss={:.3f}'.format(epoch , epochs, loss, running_loss/time_step_count))
                 running_loss = 0.0
                 time_step_count = 0
+
             if i % (report_every * 10) == 0:
-                # print()
-                # print("REPORTING")
-                # print()
                 model.eval()
                 with torch.no_grad():
                     total_loss = 0.
@@ -115,12 +117,14 @@ if __name__ == "__main__":
                         count += 1
                     valid_loss = total_loss / count
                     if valid_loss < best_loss:
-                        print("Best valid loss:", valid_loss)
+                        # print("Best valid loss:", valid_loss)
+                        logger.info(f'Best valid loss: {valid_loss}')
                         with open('model.pt', 'wb') as f:
                             torch.save(model, f)
                         best_loss = valid_loss
                     else:
-                        print("Valid loss:", valid_loss)
+                        # print("Valid loss:", valid_loss)
+                        logger.info(f'Valid loss: {valid_loss}')
                 random.shuffle(valid_filenames)
                 scheduler.step(valid_loss)
                 model.train()

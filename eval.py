@@ -60,7 +60,7 @@ def evaluate(model_name, num_examples, label_type, seed, encode_method=None):
     # label: pandas.DataFrame, [sample  segment   frame  btype  rtype], (180, 5)
     # print('labels: ', labels)
 
-    if encode_method != None:
+    if encode_method != None: 
         # 如果使用了编码器（特征学习），就导入模块encoders的属性
         enc = getattr(encoders, encode_method)() # enc是模块encoders下的属性，比如convautoencoder
         # print("Encoder:", enc)

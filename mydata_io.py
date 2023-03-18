@@ -233,8 +233,8 @@ if __name__ == "__main__":
     import glob
     from pprint import pprint
     directory = "/home/shawntan/projects/rpp-bengioy/jpcohen/icentia12k"
-    print(directory + "/*_batched.pkl.gz")
+    # print(directory + "/*_batched.pkl.gz")
     filenames = glob.glob(directory + "/*_batched.pkl.gz")
-    print(filenames)
+    # print(filenames)
     stream = stream_file_list(filenames)
-    print(sum(x.shape[0] for x in stream))
+    # print(sum(x.shape[0] for x in stream))
