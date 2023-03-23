@@ -268,7 +268,6 @@ class Autoencoder(torch.nn.Module):
         )
         self.frame_bn = nn.BatchNorm1d(frame_dim)
 
-        # self.linear_trans = nn.Linear(frame_dim+self.patient_num//frame_dim, frame_dim)
         # TODO: 改为卷积，将第三维大小622变为512，参与后续的解码
         self.merge_conv = nn.Conv1d(frame_dim, frame_dim, kernel_size=self.patient_num//frame_dim+1)
 
@@ -297,34 +296,28 @@ class Autoencoder(torch.nn.Module):
         ''' 
         自编码器，解码器部分添加病人的唯一标识，用独热编码表示
         input: (16, 1, 1048577)
+        返回损失
         '''
-        identity = torch.eye(self.patient_num)
-        # print('====== AutoEncoder ======')
         # input: (16, 1, 1048577+1)
-        input = input[:, :, :-1]
+        identity = torch.eye(self.patient_num) # 产生单位阵
+        # print('====== AutoEncoder ======')
+        input = input[:, :, :-1] # (16, 1, 1048577+1) => (16, 1, 1048577)
         patient_idx = input[:, :, -1].flatten().long() # (16,)
 
         input = (input - self.mean) / self.std
         input_flat = input.view(-1, 1, input.size(-1))
 
-        encode = self.encode(input_flat) # encode: (16, 100, 512)
+        encode = self.encode(input_flat) # input_flat: (16, 1, 1048577), encode: (16, 100, 512)
 
         # TODO: 拼接病人的唯一标识
         bz, c, l = encode.shape # 16, 100, 512
-        extra = identity[patient_idx].reshape(bz, c, -1).cuda() # (16, 11000) => (16, 100, 110), 每一行均为独热，注意要将其转移到cuda，不然在gpu上训练时会报错
+        extra = identity[patient_idx].reshape(bz, c, -1) # (16, 11000) => (16, 100, 110), 每一行均为独热，注意要将其转移到cuda，不然在gpu上训练时会报错
 
-        # print('encode: ', encode.shape)
-        # encode = encode.flatten(1) # (16, 51200)
         encode_h = torch.cat([encode, extra], dim=2) # encode_h: (16, 100, 622)
         encode_h = self.merge_conv(encode_h) # (16, 100, 622) => (16, 100, 512)
-        # encode_h = self.linear_trans(encode_h) # encode_h: (16, 100, 512)
-        # encode_h = encode_h.reshape(bz, c, l) # encode_h: (16, 100, 512)
 
         output = self.decode(encode_h) # output: (16, 1, 1048577)
-        # print('decode: ', output.shape)
-
         output = output.view(input.size())
-        # print('output: ', output.shape)
         
         # input为原始输入，output为自编码器的输出
         loss = torch.sqrt(torch.mean((output - input)**2))

@@ -35,7 +35,7 @@ parser.add_argument('-model', type=str, default="knn", choices=[
                     "knn", "mlp", "lr", "adaboost", "conv-resnet", "conv-basic"], help='Model to evaluate embeddings with.')
 parser.add_argument('-encode_method', type=str, default=None, choices=[o for o in dir(
     encoders) if not o.startswith("_")], help='to encode the signals on the fly')
-    # dir(encoders): [convautoencoder, none, rand, convautoencoder_random, pca, ...]
+    # dir(encoders): [myConvAE, convautoencoder, none, rand, convautoencoder_random, pca, ...]
 args = parser.parse_args()
 
 print(args)

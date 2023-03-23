@@ -87,7 +87,6 @@ def multithreaded(stream, fun, queue_size=10, worker_count=5):
             yield item
 
 
-
 def threaded(stream, queue_size=10):
     '''线程，分线程读取数据'''
     work_queue = queue.Queue(maxsize=queue_size)

@@ -9,6 +9,8 @@ import queue
 
 import multiprocessing
 
+t = 0
+
 
 def multiprocess(stream, fun, queue_size=10, worker_count=5):
     in_queue = multiprocessing.JoinableQueue(maxsize=queue_size)
@@ -117,7 +119,10 @@ def load_file(filename: str):
     file: e.g. G:\深度学习\医疗\icentia-ecg\icentia-ecg\datasets\
     返回一个ndarray类型的数组，是文件的读取结果，尺寸为(50, 1048578)，最后一列记录当前一横行数据的采集者，范围0~10999
     '''
-    # print(">", filename)
+    # print("load file:", filename)
+    global t
+    t += 1
+    print(f'file {t}')
     data = pickle.load(gzip.open(filename))
     idx = int(filename.split('/')[-1][:5])
     temp = idx * np.ones((data.shape[0], 1)) # (50, 1)

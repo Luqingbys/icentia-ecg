@@ -29,6 +29,35 @@ class none():
         return x
 
 
+class myConvAE():
+    def __init__(self, model_name="newAe.pt", data=None):
+        if model_name is None:
+            import myAE
+            self.enc = myAE.Autoencoder()
+        else:
+            self.enc = torch.load(os.path.join(dir_path, model_name), map_location='cpu')
+        self.enc.eval()
+
+
+    def __str__(self):
+         return "ConvAE"
+
+
+    def encode(self, x):
+        '''编码器结构，调用自编码器的编码器，返回编码得到的numpy数组'''
+        import torch
+        x = torch.from_numpy(x).float()
+        emb = self.enc.encode(x[None, None, :])[0, :, 0].detach().numpy()
+        return emb
+
+
+    def decode(self, x):
+        import torch
+        x = torch.from_numpy(x)
+        emb = self.enc.decode(x[None,:,None]).detach().numpy()
+        return emb[0][0]
+
+
 class convautoencoder():
     ''' 
     卷积自编码器
